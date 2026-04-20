@@ -104,36 +104,38 @@ export default function RubiksCube() {
   if (currentMove && ROTATION_AXES[currentMove]) {
     const { axis, angle, filter } = ROTATION_AXES[currentMove];
     animAxis = axis;
-    animAngle = angle * easeInOut(animProgress);
+    animAngle = angle * (easeInOut(animProgress) - 1);
     pieces.forEach((piece, idx) => {
       if (filter(piece)) rotatingIndices.add(idx);
     });
   }
 
   return (
-    <group key={renderKey} onPointerDown={onPointerDown}>
-      {animAxis && (
-        <group rotation={new THREE.Euler(
-          animAxis.x * animAngle,
-          animAxis.y * animAngle,
-          animAxis.z * animAngle,
-        )}>
-          {pieces.filter((_, i) => rotatingIndices.has(i)).map((piece, i) => (
-            <Cubie
-              key={`anim-${i}`}
-              position={[piece.pos.x, piece.pos.y, piece.pos.z]}
-              colors={getPieceColors(piece)}
-            />
-          ))}
-        </group>
-      )}
-      {pieces.filter((_, i) => !rotatingIndices.has(i)).map((piece, i) => (
-        <Cubie
-          key={`static-${i}`}
-          position={[piece.pos.x, piece.pos.y, piece.pos.z]}
-          colors={getPieceColors(piece)}
-        />
-      ))}
+    <group rotation={[Math.PI, 0, 0]}>
+      <group key={renderKey} onPointerDown={onPointerDown}>
+        {animAxis && (
+          <group rotation={new THREE.Euler(
+            animAxis.x * animAngle,
+            animAxis.y * animAngle,
+            animAxis.z * animAngle,
+          )}>
+            {pieces.filter((_, i) => rotatingIndices.has(i)).map((piece, i) => (
+              <Cubie
+                key={`anim-${i}`}
+                position={[piece.pos.x, piece.pos.y, piece.pos.z]}
+                colors={getPieceColors(piece)}
+              />
+            ))}
+          </group>
+        )}
+        {pieces.filter((_, i) => !rotatingIndices.has(i)).map((piece, i) => (
+          <Cubie
+            key={`static-${i}`}
+            position={[piece.pos.x, piece.pos.y, piece.pos.z]}
+            colors={getPieceColors(piece)}
+          />
+        ))}
+      </group>
     </group>
   );
 }
