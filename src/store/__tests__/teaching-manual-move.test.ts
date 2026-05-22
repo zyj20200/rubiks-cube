@@ -61,6 +61,35 @@ describe('teaching mode: manual moves follow the precomputed solution', () => {
     expect(after.cube.isSolved()).toBe(true);
   });
 
+  it('自动还原 plays move-by-move (not all at once) and ends solved', () => {
+    const store = useCubeStore.getState();
+    const total = store.teachingSolution!.length;
+    expect(total).toBeGreaterThan(1);
+
+    store.solveAll();
+
+    // Regression: the old solveAll dumped every move into the queue and
+    // pre-applied them all, snapping the model to solved instantly. Now only
+    // the first step is queued and the model is NOT yet solved.
+    const afterStart = useCubeStore.getState();
+    expect(afterStart.autoSolving).toBe(true);
+    expect(afterStart.animationQueue.length).toBe(1);
+    expect(afterStart.cube.isSolved()).toBe(false);
+
+    // Drive the animation loop the way RubiksCube does: consume the queued
+    // move, then signal completion (which chains to the next step).
+    let guard = 0;
+    while (useCubeStore.getState().isAnimating && guard++ < 5000) {
+      useCubeStore.getState().dequeueAnimation();
+      useCubeStore.getState().finishAnimation();
+    }
+
+    const done = useCubeStore.getState();
+    expect(done.cube.isSolved()).toBe(true);
+    expect(done.autoSolving).toBe(false);
+    expect(done.teachingSolutionIndex).toBe(total);
+  });
+
   it('a move that deviates from the hint discards the stale solution', () => {
     const solution = useCubeStore.getState().teachingSolution!;
     const expected = solution[0];

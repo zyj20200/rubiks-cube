@@ -29,6 +29,9 @@ interface CubeState {
   // Quarter turns already applied toward the current (half-turn) solution move,
   // so a manually-dragged R2 advances only after both swipes.
   teachingPartial: number;
+  // True while "自动还原" is playing the solution move-by-move; each finished
+  // animation triggers the next step so the model stays one move ahead.
+  autoSolving: boolean;
 
   executeMove: (move: string) => void;
   executeMoves: (moves: string[], skipAnimation?: boolean) => void;
@@ -69,6 +72,7 @@ export const useCubeStore = create<CubeState>((set, get) => ({
   teachingSolutionIndex: 0,
   teachingPhases: null,
   teachingPartial: 0,
+  autoSolving: false,
 
   executeMove: (move: string) => {
     const {
@@ -182,6 +186,7 @@ export const useCubeStore = create<CubeState>((set, get) => ({
       teachingSolutionIndex: 0,
       teachingPhases: null,
       teachingPartial: 0,
+      autoSolving: false,
     });
   },
 
@@ -200,6 +205,7 @@ export const useCubeStore = create<CubeState>((set, get) => ({
       teachingSolutionIndex: 0,
       teachingPhases: null,
       teachingPartial: 0,
+      autoSolving: false,
     });
   },
 
@@ -218,10 +224,15 @@ export const useCubeStore = create<CubeState>((set, get) => ({
   },
 
   finishAnimation: () => {
-    const { animationQueue } = get();
-    if (animationQueue.length === 0) {
-      set({ isAnimating: false });
+    const { animationQueue, autoSolving, teachingSolution, teachingSolutionIndex } = get();
+    if (animationQueue.length > 0) return;
+    // During auto-solve, advance to the next step instead of stopping, so each
+    // move is animated in turn (with the model only one move ahead at a time).
+    if (autoSolving && teachingSolution && teachingSolutionIndex < teachingSolution.length) {
+      get().solveNextStep();
+      return;
     }
+    set({ isAnimating: false, autoSolving: false });
   },
 
   startTimer: () => set({ timerRunning: true, timerStartTime: Date.now(), timerElapsed: 0 }),
@@ -302,24 +313,29 @@ export const useCubeStore = create<CubeState>((set, get) => ({
     }
   },
 
+  // Play the whole solution automatically, one move per animation. We must not
+  // pre-apply every move to the model (that would snap the cube to solved and
+  // then merely wiggle layers); instead we reuse the single-step pipeline and
+  // let finishAnimation chain to the next step.
   solveAll: () => {
-    const { cube } = get();
-    try {
-      const { moves, boundaries } = computeTeachingSolution(cube);
-      for (const m of moves) cube.sequence(m);
-      set({
-        animationQueue: moves,
-        isAnimating: true,
-        currentStep: detectCurrentStep(cube),
-        undoStack: [...get().undoStack, ...moves],
-        redoStack: [],
-        teachingSolution: moves,
-        teachingSolutionIndex: moves.length,
-        teachingPhases: boundaries,
-        teachingPartial: 0,
-      });
-    } catch {
-      // unsolvable
+    const { cube, teachingSolution, teachingSolutionIndex } = get();
+    const needsCompute = !teachingSolution || teachingSolutionIndex >= teachingSolution.length;
+    if (needsCompute) {
+      try {
+        const { moves, boundaries } = computeTeachingSolution(cube);
+        if (moves.length === 0) return;
+        set({
+          teachingSolution: moves,
+          teachingSolutionIndex: 0,
+          teachingPhases: boundaries,
+          teachingPartial: 0,
+          currentStep: stepForMoveIndex(0, boundaries),
+        });
+      } catch {
+        return; // unsolvable
+      }
     }
+    set({ autoSolving: true });
+    get().solveNextStep(); // animates the first step; the rest chain on finish
   },
 }));
