@@ -8,16 +8,20 @@ import { useCubeStore } from '@/store/cube-store';
 const GAP = 1.03;
 const DRAG_THRESHOLD = 0.3;
 
+// Keyed by world-space (rotAxisIdx, layer, angleSign). The scene renders the
+// cube inside a group rotated [π,0,0] (world = (x,-y,-z) of the model), so the
+// y/z entries are the model move conjugated by that rotation — otherwise a drag
+// on the top row would turn the bottom row, and front/back would swap too.
 const MOVE_MAP: Record<string, string> = {
   '0,1,-1': 'R', '0,1,1': 'Ri',
   '0,-1,-1': 'Li', '0,-1,1': 'L',
   '0,0,-1': 'Mi', '0,0,1': 'M',
-  '1,1,-1': 'U', '1,1,1': 'Ui',
-  '1,-1,-1': 'Di', '1,-1,1': 'D',
-  '1,0,-1': 'Ei', '1,0,1': 'E',
-  '2,1,-1': 'F', '2,1,1': 'Fi',
-  '2,-1,-1': 'Bi', '2,-1,1': 'B',
-  '2,0,-1': 'S', '2,0,1': 'Si',
+  '1,1,-1': 'D', '1,1,1': 'Di',
+  '1,-1,-1': 'Ui', '1,-1,1': 'U',
+  '1,0,-1': 'E', '1,0,1': 'Ei',
+  '2,1,-1': 'B', '2,1,1': 'Bi',
+  '2,-1,-1': 'Fi', '2,-1,1': 'F',
+  '2,0,-1': 'Si', '2,0,1': 'S',
 };
 
 function snapToAxis(v: THREE.Vector3): THREE.Vector3 {

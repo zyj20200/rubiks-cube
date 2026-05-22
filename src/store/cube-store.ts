@@ -2,9 +2,8 @@ import { create } from 'zustand';
 import { Cube } from '@/lib/cube';
 import { generateScramble } from '@/lib/cube-utils';
 import { invertMove } from '@/lib/solver/optimizer';
-import { Solver } from '@/lib/solver/solver';
-import { detectCurrentStep } from '@/lib/solver/step-detector';
-import { optimizeMoves } from '@/lib/solver/optimizer';
+import { detectCurrentStep, stepForMoveIndex } from '@/lib/solver/step-detector';
+import { computeTeachingSolution } from '@/lib/solver/teaching';
 
 export type AppMode = 'free' | 'teaching' | 'timer';
 
@@ -26,6 +25,7 @@ interface CubeState {
 
   teachingSolution: string[] | null;
   teachingSolutionIndex: number;
+  teachingPhases: number[] | null;
 
   executeMove: (move: string) => void;
   executeMoves: (moves: string[], skipAnimation?: boolean) => void;
@@ -43,6 +43,7 @@ interface CubeState {
   updateTimerElapsed: () => void;
   solveNextStep: () => void;
   solveAll: () => void;
+  ensureTeachingSolution: () => void;
 }
 
 export const useCubeStore = create<CubeState>((set, get) => ({
@@ -63,6 +64,7 @@ export const useCubeStore = create<CubeState>((set, get) => ({
 
   teachingSolution: null,
   teachingSolutionIndex: 0,
+  teachingPhases: null,
 
   executeMove: (move: string) => {
     const { cube, undoStack } = get();
@@ -75,6 +77,7 @@ export const useCubeStore = create<CubeState>((set, get) => ({
       currentStep: detectCurrentStep(cube),
       teachingSolution: null,
       teachingSolutionIndex: 0,
+      teachingPhases: null,
     });
   },
 
@@ -89,6 +92,7 @@ export const useCubeStore = create<CubeState>((set, get) => ({
       currentStep: detectCurrentStep(cube),
       teachingSolution: null,
       teachingSolutionIndex: 0,
+      teachingPhases: null,
     });
   },
 
@@ -134,6 +138,7 @@ export const useCubeStore = create<CubeState>((set, get) => ({
       currentStep: detectCurrentStep(cube),
       teachingSolution: null,
       teachingSolutionIndex: 0,
+      teachingPhases: null,
     });
   },
 
@@ -150,10 +155,14 @@ export const useCubeStore = create<CubeState>((set, get) => ({
       timerElapsed: 0,
       teachingSolution: null,
       teachingSolutionIndex: 0,
+      teachingPhases: null,
     });
   },
 
-  setMode: (mode: AppMode) => set({ mode }),
+  setMode: (mode: AppMode) => {
+    set({ mode });
+    if (mode === 'teaching') get().ensureTeachingSolution();
+  },
   setAnimationSpeed: (speed: number) => set({ animationSpeed: speed }),
 
   dequeueAnimation: () => {
@@ -185,29 +194,55 @@ export const useCubeStore = create<CubeState>((set, get) => ({
   },
 
   solveNextStep: () => {
-    const { cube, teachingSolution, teachingSolutionIndex } = get();
+    const { cube, teachingSolution, teachingSolutionIndex, teachingPhases } = get();
 
     if (teachingSolution && teachingSolutionIndex < teachingSolution.length) {
       const move = teachingSolution[teachingSolutionIndex];
       cube.sequence(move);
+      const nextIndex = teachingSolutionIndex + 1;
       set({
         animationQueue: [move],
         isAnimating: true,
-        teachingSolutionIndex: teachingSolutionIndex + 1,
-        currentStep: detectCurrentStep(cube),
+        teachingSolutionIndex: nextIndex,
+        // Derive the step from the solution's phase structure (monotonic),
+        // not from the live cube — algorithms transiently disturb finished
+        // layers, which would make a state-based step jump backwards.
+        currentStep: teachingPhases
+          ? stepForMoveIndex(nextIndex, teachingPhases)
+          : detectCurrentStep(cube),
         undoStack: [...get().undoStack, move],
         redoStack: [],
       });
       return;
     }
 
-    const clone = cube.clone();
     try {
-      const solver = new Solver(clone);
-      solver.solve();
-      const optimized = optimizeMoves(solver.moves);
-      set({ teachingSolution: optimized, teachingSolutionIndex: 0 });
-      get().solveNextStep();
+      const { moves, boundaries } = computeTeachingSolution(cube);
+      set({
+        teachingSolution: moves,
+        teachingSolutionIndex: 0,
+        teachingPhases: boundaries,
+        currentStep: stepForMoveIndex(0, boundaries),
+      });
+      if (moves.length > 0) get().solveNextStep();
+    } catch {
+      // unsolvable
+    }
+  },
+
+  // Precompute the solution (without executing) so the next-move hint can be
+  // shown immediately on entering teaching mode or after a scramble.
+  ensureTeachingSolution: () => {
+    const { cube, teachingSolution, isAnimating } = get();
+    if (teachingSolution !== null || isAnimating || cube.isSolved()) return;
+    try {
+      const { moves, boundaries } = computeTeachingSolution(cube);
+      set({
+        teachingSolution: moves,
+        teachingSolutionIndex: 0,
+        teachingPhases: boundaries,
+        currentStep: stepForMoveIndex(0, boundaries),
+      });
     } catch {
       // unsolvable
     }
@@ -215,11 +250,8 @@ export const useCubeStore = create<CubeState>((set, get) => ({
 
   solveAll: () => {
     const { cube } = get();
-    const clone = cube.clone();
     try {
-      const solver = new Solver(clone);
-      solver.solve();
-      const moves = optimizeMoves(solver.moves);
+      const { moves, boundaries } = computeTeachingSolution(cube);
       for (const m of moves) cube.sequence(m);
       set({
         animationQueue: moves,
@@ -229,6 +261,7 @@ export const useCubeStore = create<CubeState>((set, get) => ({
         redoStack: [],
         teachingSolution: moves,
         teachingSolutionIndex: moves.length,
+        teachingPhases: boundaries,
       });
     } catch {
       // unsolvable

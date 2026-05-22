@@ -4,6 +4,8 @@ import { Cube, getRotFromFace, LEFT, RIGHT, UP, DOWN, FRONT, BACK } from '../cub
 export class Solver {
   cube: Cube;
   moves: string[] = [];
+  /** Cumulative `moves` length after each of the 7 LBL phases. Length 7 after solve(). */
+  phaseBoundaries: number[] = [];
 
   private leftPiece;
   private rightPiece;
@@ -21,12 +23,19 @@ export class Solver {
 
   solve(): void {
     this.cross();
+    this.phaseBoundaries.push(this.moves.length);
     this.crossCorners();
+    this.phaseBoundaries.push(this.moves.length);
     this.secondLayer();
+    this.phaseBoundaries.push(this.moves.length);
     this.backFaceEdges();
+    this.phaseBoundaries.push(this.moves.length);
     this.lastLayerCornersPosition();
+    this.phaseBoundaries.push(this.moves.length);
     this.lastLayerCornersOrientation();
+    this.phaseBoundaries.push(this.moves.length);
     this.lastLayerEdges();
+    this.phaseBoundaries.push(this.moves.length);
   }
 
   move(moveStr: string): void {

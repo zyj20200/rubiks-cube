@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import Cubie from './Cubie';
+import MoveHint from './MoveHint';
 import { useCubeStore } from '@/store/cube-store';
 import { useDragRotation } from '@/hooks/useDragRotation';
 import type { Piece } from '@/lib/cube';
@@ -52,6 +53,10 @@ export default function RubiksCube() {
   const animationSpeed = useCubeStore((s) => s.animationSpeed);
   const dequeueAnimation = useCubeStore((s) => s.dequeueAnimation);
   const finishAnimation = useCubeStore((s) => s.finishAnimation);
+  const mode = useCubeStore((s) => s.mode);
+  const teachingSolution = useCubeStore((s) => s.teachingSolution);
+  const isAnimating = useCubeStore((s) => s.isAnimating);
+  const ensureTeachingSolution = useCubeStore((s) => s.ensureTeachingSolution);
   const { onPointerDown } = useDragRotation();
 
   const [currentMove, setCurrentMove] = useState<string | null>(null);
@@ -79,6 +84,14 @@ export default function RubiksCube() {
     }
   }, [animationQueue, currentMove, startNextAnimation]);
 
+  // Keep a solution ready in teaching mode (after entering, scrambling, or a
+  // manual turn) so the next-move hint can be shown immediately.
+  useEffect(() => {
+    if (mode === 'teaching' && teachingSolution === null && !isAnimating) {
+      ensureTeachingSolution();
+    }
+  }, [mode, teachingSolution, isAnimating, ensureTeachingSolution]);
+
   useFrame(() => {
     if (!currentMove) return;
 
@@ -101,8 +114,14 @@ export default function RubiksCube() {
   let animAxis: THREE.Vector3 | null = null;
   let animAngle = 0;
 
-  if (currentMove && ROTATION_AXES[currentMove]) {
-    const { axis, angle, filter } = ROTATION_AXES[currentMove];
+  // Half turns ("R2") reuse the base move's axis/filter with a 180° sweep.
+  let info = currentMove ? ROTATION_AXES[currentMove] : undefined;
+  if (!info && currentMove?.endsWith('2')) {
+    const base = ROTATION_AXES[currentMove.slice(0, -1)];
+    if (base) info = { axis: base.axis, angle: base.angle * 2, filter: base.filter };
+  }
+  if (info) {
+    const { axis, angle, filter } = info;
     animAxis = axis;
     animAngle = angle * (easeInOut(animProgress) - 1);
     pieces.forEach((piece, idx) => {
@@ -136,6 +155,7 @@ export default function RubiksCube() {
           />
         ))}
       </group>
+      <MoveHint />
     </group>
   );
 }

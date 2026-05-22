@@ -81,7 +81,7 @@ export default function TeachingPanel() {
       {teachingSolution && teachingSolution.length > 0 && (
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">解法公式</h4>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 max-h-24 md:max-h-40 overflow-y-auto">
             {teachingSolution.map((move, i) => (
               <span
                 key={i}
@@ -103,9 +103,9 @@ export default function TeachingPanel() {
         </div>
       )}
 
-      {/* Action buttons */}
+      {/* Action buttons — pinned to the panel bottom so they stay reachable */}
       {!isSolved && (
-        <div className="p-4 space-y-2">
+        <div className="p-4 space-y-2 sticky bottom-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={solveNextStep}
             disabled={isAnimating}
@@ -123,8 +123,8 @@ export default function TeachingPanel() {
         </div>
       )}
 
-      {/* Keyboard hints */}
-      <div className="mt-auto p-4 text-xs text-gray-400 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700">
+      {/* Keyboard hints (desktop only) */}
+      <div className="hidden md:block mt-auto p-4 text-xs text-gray-400 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700">
         <p className="font-medium mb-1">键盘快捷键</p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
           <span>R / Shift+R: 右面</span>

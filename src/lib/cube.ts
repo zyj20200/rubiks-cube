@@ -202,9 +202,12 @@ export class Cube {
 
   sequence(moveStr: string): void {
     for (const name of moveStr.split(/\s+/).filter(Boolean)) {
-      const fn = (this as unknown as Record<string, () => void>)[name];
+      // Half turn (e.g. "R2") = the base move applied twice.
+      const repeats = name.endsWith('2') ? 2 : 1;
+      const base = repeats === 2 ? name.slice(0, -1) : name;
+      const fn = (this as unknown as Record<string, () => void>)[base];
       if (!fn) throw new Error(`Unknown move: ${name}`);
-      fn.call(this);
+      for (let r = 0; r < repeats; r++) fn.call(this);
     }
   }
 

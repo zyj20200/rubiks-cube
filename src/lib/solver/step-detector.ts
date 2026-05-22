@@ -97,13 +97,29 @@ export function detectCurrentStep(cube: Cube): number {
   return 6;
 }
 
+/**
+ * Map a teaching-playback move index to the LBL step currently being worked on.
+ *
+ * `boundaries` are the cumulative move counts after each of the 7 phases (from
+ * `optimizePhases`). Returns 0-6 while moves remain in the matching phase, or 7
+ * once every move has been played (cube solved). Unlike `detectCurrentStep`,
+ * this is monotonic across the solution: it never reports an earlier step just
+ * because an algorithm temporarily disturbs an already-finished layer.
+ */
+export function stepForMoveIndex(index: number, boundaries: number[]): number {
+  for (let p = 0; p < boundaries.length; p++) {
+    if (index < boundaries[p]) return p;
+  }
+  return 7;
+}
+
 export const STEP_INFO = [
   { step: 0, nameZh: '开始', nameEn: 'Start', description: '准备开始还原魔方' },
-  { step: 1, nameZh: '底面十字', nameEn: 'White Cross', description: '在前面（白色面）形成十字' },
-  { step: 2, nameZh: '底面角块', nameEn: 'White Corners', description: '还原前面（白色面）的四个角块' },
+  { step: 1, nameZh: '底面十字', nameEn: 'White Cross', description: '在底面（白色面）形成十字' },
+  { step: 2, nameZh: '底面角块', nameEn: 'White Corners', description: '还原底面（白色面）的四个角块' },
   { step: 3, nameZh: '中层棱块', nameEn: 'Middle Layer', description: '还原中间层的四个棱块' },
-  { step: 4, nameZh: '顶面十字', nameEn: 'Yellow Cross', description: '在背面（黄色面）形成十字' },
-  { step: 5, nameZh: '顶面角块方向', nameEn: 'Yellow Corners Orientation', description: '调整背面角块的朝向' },
-  { step: 6, nameZh: '顶面角块位置', nameEn: 'Yellow Corners Position', description: '调整背面角块的位置' },
-  { step: 7, nameZh: '顶面棱块位置', nameEn: 'Yellow Edges', description: '调整背面棱块完成还原' },
+  { step: 4, nameZh: '顶面十字', nameEn: 'Yellow Cross', description: '在顶面（黄色面）形成十字' },
+  { step: 5, nameZh: '顶面角块方向', nameEn: 'Yellow Corners Orientation', description: '调整顶面角块的朝向' },
+  { step: 6, nameZh: '顶面角块位置', nameEn: 'Yellow Corners Position', description: '调整顶面角块的位置' },
+  { step: 7, nameZh: '顶面棱块位置', nameEn: 'Yellow Edges', description: '调整顶面棱块完成还原' },
 ];

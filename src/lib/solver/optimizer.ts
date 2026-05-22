@@ -38,7 +38,7 @@ export function invertMove(move: string): string {
   return move + 'i';
 }
 
-function unrotate(rot: string, moves: string[]): string[] {
+export function unrotate(rot: string, moves: string[]): string[] {
   const table = getRotTable(rot)!;
   return moves.map((move) => {
     if (move in table) return table[move];
@@ -95,10 +95,116 @@ function applyDoUndoOptimization(moves: string[]): void {
   if (changed) applyDoUndoOptimization(moves);
 }
 
+// Which axis each layer move turns about (R/L/M → x, U/D/E → y, F/B/S → z).
+// Whole-cube rotations are intentionally excluded.
+const FACE_AXIS: Record<string, number> = {
+  R: 0, L: 0, M: 0,
+  U: 1, D: 1, E: 1,
+  F: 2, B: 2, S: 2,
+};
+
+const baseFace = (m: string): string => (m.endsWith('i') ? m.slice(0, -1) : m);
+const quarterTurns = (m: string): number => (m.endsWith('i') ? 3 : 1); // CW count mod 4
+function turnsToMoves(face: string, n: number): string[] {
+  n = ((n % 4) + 4) % 4;
+  if (n === 0) return [];
+  if (n === 1) return [face];
+  if (n === 2) return [face, face];
+  return [`${face}i`];
+}
+
+// Moves about the same axis commute, so a run of them can be reordered and the
+// turns on each face combined to their net (mod 4). This cancels redundancy the
+// adjacency passes miss, e.g. `R L R'` → `L`, `U D U` → `U2 D`. Method-neutral.
+function applySameAxisMerge(moves: string[]): void {
+  let changed = false;
+  let i = 0;
+  while (i < moves.length) {
+    const axis = FACE_AXIS[baseFace(moves[i])];
+    if (axis === undefined) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < moves.length && FACE_AXIS[baseFace(moves[j])] === axis) j++;
+    if (j - i >= 2) {
+      const net: Record<string, number> = {};
+      const order: string[] = [];
+      for (let k = i; k < j; k++) {
+        const f = baseFace(moves[k]);
+        if (!(f in net)) {
+          net[f] = 0;
+          order.push(f);
+        }
+        net[f] += quarterTurns(moves[k]);
+      }
+      const out: string[] = [];
+      for (const f of order) out.push(...turnsToMoves(f, net[f]));
+      if (out.length !== j - i) {
+        moves.splice(i, j - i, ...out);
+        changed = true;
+        continue; // re-evaluate from the same spot
+      }
+    }
+    i = j;
+  }
+  if (changed) applySameAxisMerge(moves);
+}
+
+// Write adjacent identical quarter turns as a single half turn (R R → R2),
+// beginner-standard notation that turns two steps into one. Run last, on a
+// fully reduced quarter-turn list.
+function collapseHalfTurns(moves: string[]): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < moves.length) {
+    const f = baseFace(moves[i]);
+    if (FACE_AXIS[f] !== undefined && i + 1 < moves.length && moves[i + 1] === moves[i]) {
+      out.push(`${f}2`);
+      i += 2;
+    } else {
+      out.push(moves[i]);
+      i++;
+    }
+  }
+  return out;
+}
+
 export function optimizeMoves(moves: string[]): string[] {
   const result = [...moves];
-  applyNoFullCubeRotationOptimization(result);
-  applyRepeatThreeOptimization(result);
-  applyDoUndoOptimization(result);
-  return result;
+  let prev: number;
+  do {
+    prev = result.length;
+    applyNoFullCubeRotationOptimization(result);
+    applySameAxisMerge(result);
+    applyRepeatThreeOptimization(result);
+    applyDoUndoOptimization(result);
+  } while (result.length < prev);
+  return collapseHalfTurns(result);
+}
+
+/**
+ * Optimize a solution while preserving its LBL phase structure.
+ *
+ * Each phase slice (delimited by `rawBoundaries`, cumulative indices into
+ * `moves`) is optimized independently and concatenated. Every solver phase is
+ * orientation-balanced (it starts and ends in the same cube orientation), so
+ * optimizing per-phase keeps the full solution correct while producing exact
+ * boundaries the teaching UI can use to report which step each move belongs to.
+ *
+ * Returns the optimized move list plus the cumulative boundaries within it.
+ */
+export function optimizePhases(
+  moves: string[],
+  rawBoundaries: number[],
+): { moves: string[]; boundaries: number[] } {
+  const out: string[] = [];
+  const boundaries: number[] = [];
+  let start = 0;
+  for (const end of rawBoundaries) {
+    out.push(...optimizeMoves(moves.slice(start, end)));
+    boundaries.push(out.length);
+    start = end;
+  }
+  return { moves: out, boundaries };
 }

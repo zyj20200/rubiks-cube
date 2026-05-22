@@ -60,9 +60,9 @@ export function parseDisplayMove(display: string): string[] {
 
 export const COLOR_MAP: Record<string, string> = {
   W: '#FAFAF6',
-  Y: '#F7E44D',
-  R: '#F06048',
-  O: '#FBB04E',
+  Y: '#FFD21E', // pure yellow (hue ~48°)
+  R: '#F0473D', // red, pushed away from orange
+  O: '#FF7A12', // vivid orange (hue ~26°)
   B: '#7DC4EC',
-  G: '#B0E85A',
+  G: '#2FB84B', // true green (hue ~133°), no longer yellow-green
 };

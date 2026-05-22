@@ -37,7 +37,6 @@ export default function Home() {
           </div>
         )}
       </div>
-      <ControlBar />
       {mode === 'teaching' && (
         <div className="md:hidden">
           <MobileDrawer>
@@ -45,6 +44,7 @@ export default function Home() {
           </MobileDrawer>
         </div>
       )}
+      <ControlBar />
     </main>
   );
 }
